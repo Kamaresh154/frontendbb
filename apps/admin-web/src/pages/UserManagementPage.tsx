@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { useRole } from "../context/RoleGuard";
 import { addEmployee, getEmployees } from "../lib/store";
 
 interface OrgOption { id: string; name: string; slug: string; }
@@ -26,7 +25,6 @@ const BLANK = { email: "", password: "", full_name: "", role: "employee", organi
 
 export default function UserManagementPage() {
   const { user: me } = useAuth();
-  const { isSuperAdmin } = useRole();
 
   // Only super admin can access this page (enforced in App.tsx routes too)
   const [users, setUsers] = useState<UserItem[]>([]);
