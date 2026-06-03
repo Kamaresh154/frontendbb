@@ -1,0 +1,11 @@
+[build]
+  command = "pnpm --filter @kidzventure/admin-web run build"
+  publish = "apps/admin-web/dist"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
