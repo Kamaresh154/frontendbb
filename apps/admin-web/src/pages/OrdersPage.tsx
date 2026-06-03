@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useRole } from "../context/RoleGuard";
-import { getEmployees, addInvoice, getCentres, getInvoices, writeSync, read } from "../lib/store";
+import { getEmployees, addInvoice, getCentres, getInvoices, writeSync } from "../lib/store";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 interface Product { id: string; name: string; selling_price: number; unit: string; sku: string; }
