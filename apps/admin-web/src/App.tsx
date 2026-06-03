@@ -42,11 +42,10 @@ function RoleRoute({ children, allowed }: { children: React.ReactNode; allowed: 
 }
 
 function AppRoutes() {
-  const { isSuperAdmin, isEmployee, isFranchiseManager } = useRole();
+  const { isSuperAdmin, isEmployee } = useRole();
 
   // Access groups
-  const isSuperOrEmployee   = isSuperAdmin || isEmployee;      // internal staff
-  const notFranchise        = isSuperAdmin || isEmployee;      // same as above
+  const notFranchise = isSuperAdmin || isEmployee;      // internal staff only
 
   return (
     <Routes>
