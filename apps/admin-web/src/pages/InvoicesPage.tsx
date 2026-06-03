@@ -117,7 +117,7 @@ function printInvoice(inv: LocalInvoice) {
 
 export default function InvoicesPage() {
   const { user } = useAuth();
-  const { isEmployee, isFranchiseManager, isAdmin, isSuperAdmin } = useRole();
+  const { isFranchiseManager, isAdmin, isSuperAdmin } = useRole();
   const isFranchiseOnly = isFranchiseManager && !isAdmin && !isSuperAdmin;
   const canCreate = !isFranchiseOnly;           // admin + employee can create
   const canSend   = !isFranchiseOnly;           // admin + employee can send
@@ -149,7 +149,7 @@ export default function InvoicesPage() {
     // Franchise sees only invoices linked to their own orders
     const myOrders = getOrders();
     const visibleInv = isFranchiseOnly
-      ? allInv.filter((inv) => myOrders.some((o) => o.id === inv.order_id))
+      ? allInv.filter((inv) => myOrders.some((o) => o.order_id === inv.order_id))
       : allInv;
     setInvoices(visibleInv);
     setCentres(getCentres());
