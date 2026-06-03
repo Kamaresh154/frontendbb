@@ -448,7 +448,7 @@ export default function TeleCallingPage() {
                     <input type="radio" name="recmode" value={opt.value} checked={recordingSource === opt.value}
                       onChange={() => setRecordingSource(opt.value)} className="mt-0.5 accent-brand-purple" />
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">{opt.icon} {opt.label} {opt.recommended && <span className="ml-1 rounded-full bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 font-bold">Recommended</span>}</p>
+                      <p className="text-sm font-semibold text-slate-800">{opt.icon} {opt.label} {'recommended' in opt && opt.recommended && <span className="ml-1 rounded-full bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 font-bold">Recommended</span>}</p>
                       <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
                     </div>
                   </label>
