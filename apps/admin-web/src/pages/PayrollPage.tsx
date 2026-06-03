@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext";
 import { getEmployees, getPayslips, addPayslip, updatePayslipStatus, syncEmployeesFromAPI, type LocalEmployee, type LocalPayslip } from "../lib/store";
 import { api } from "../api/client";
 
@@ -8,7 +7,6 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PayrollPage() {
-  const { user } = useAuth();
   const [tab, setTab] = useState<"staff" | "payslips">("staff");
   const [employees, setEmployees] = useState<LocalEmployee[]>([]);
   const [payslips, setPayslips]   = useState<LocalPayslip[]>([]);
