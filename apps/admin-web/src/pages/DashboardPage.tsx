@@ -176,7 +176,7 @@ function QuickAction({ href, icon, label, desc }: { href: string; icon: string; 
   );
 }
 
-function QuickActionCard({ href, icon, label, desc, color }: { href: string; icon: string; label: string; desc: string; color: string }) {
+function QuickActionCard({ href, icon, label, desc }: { href: string; icon: string; label: string; desc: string; color: string }) {
   return (
     <a href={href} className="group flex flex-col gap-2 rounded-2xl border bg-white p-5 shadow-sm ring-1 ring-slate-100 transition hover:border-brand-purple/30 hover:shadow-md">
       <span className="text-3xl">{icon}</span>
