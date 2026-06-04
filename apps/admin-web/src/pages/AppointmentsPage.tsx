@@ -79,7 +79,7 @@ export default function AppointmentsPage() {
   const todayAppts = appts.filter((a) => a.date === today);
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Appointments</h1>
