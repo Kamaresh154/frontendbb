@@ -336,7 +336,6 @@ export default function OrdersPage() {
   const [phone, setPhone]         = useState("");
   const [address, setAddress]     = useState("");
   const [notes, setNotes]         = useState("");
-  const [discount, setDiscount]   = useState("0");
   const [assignTo, setAssignTo]   = useState("");
   const [payMethod, setPayMethod] = useState<PaymentMethod>("gpay");
   const [cartItems, setCartItems] = useState<{ product_id: string; product_name: string; qty: number; unit_price: number; total: number }[]>([]);
@@ -359,7 +358,7 @@ export default function OrdersPage() {
 
   const fmt = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;
   const cartSubtotal = cartItems.reduce((s, i) => s + i.total, 0);
-  const cartTotal    = Math.max(0, cartSubtotal - (parseFloat(discount) || 0));
+  const cartTotal    = cartSubtotal;
 
   /* ── Cart ── */
   function addToCart() {
@@ -378,13 +377,12 @@ export default function OrdersPage() {
   function placeOrder() {
     if (!customer.trim() || cartItems.length === 0) { alert("Enter customer name and add at least one product."); return; }
     const subtotal = cartItems.reduce((s, i) => s + i.total, 0);
-    const disc = parseFloat(discount) || 0;
-    const total = Math.max(0, subtotal - disc);
+    const total = subtotal;
     const all = getOrders();
     const order: Order = {
       id: "ord_" + Date.now(), order_no: "ORD-" + String(all.length + 1).padStart(4, "0"),
       customer: customer.trim(), phone, address, date: new Date().toISOString().slice(0, 10),
-      items: cartItems, subtotal, discount: disc, total,
+      items: cartItems, subtotal, discount: 0, total,
       status: "pending", payment_method: payMethod, payment_status: "unpaid",
       notes, placed_by: myIdentity, placed_by_role: myRoleLabel, assigned_to: assignTo,
       status_history: [{ status: "pending", changed_by: myIdentity, changed_at: new Date().toLocaleString("en-IN") }],
@@ -401,7 +399,7 @@ export default function OrdersPage() {
       isPaid: false, invoiceType: "order",
     });
     setCartItems([]); setCustomer(""); setPhone(""); setAddress(""); setNotes("");
-    setDiscount("0"); setAssignTo(""); setPayMethod("gpay"); setShowForm(false);
+    setAssignTo(""); setPayMethod("gpay"); setShowForm(false);
     showToast(`${order.order_no} placed! Placement invoice printed.`, "info");
   }
 
@@ -520,7 +518,7 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="p-8 max-w-screen-xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-screen-xl mx-auto space-y-6">
 
       {/* Toast */}
       {toast && (
@@ -589,7 +587,7 @@ export default function OrdersPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Orders & Payments</h1>
           <p className="text-sm text-slate-500">
@@ -672,7 +670,6 @@ export default function OrdersPage() {
                 ))}</tbody></table>
                 <div className="bg-slate-50 px-4 py-2 text-sm flex gap-4 items-center justify-end">
                   <span>Subtotal: <strong>{fmt(cartSubtotal)}</strong></span>
-                  <div className="flex items-center gap-1"><span>Discount:</span><input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className="w-24 rounded-lg border px-2 py-1 text-sm" /></div>
                   <span className="font-bold text-brand-purple">Total: {fmt(cartTotal)}</span>
                 </div>
               </div>
