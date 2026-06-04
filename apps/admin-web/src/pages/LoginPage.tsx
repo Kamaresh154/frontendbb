@@ -126,27 +126,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Quick-fill hint for dev */}
-            <div className="mt-5 rounded-xl bg-slate-50 border p-3">
-              <p className="text-xs font-semibold text-slate-500 mb-2">Default credentials</p>
-              <div className="space-y-1">
-                {[
-                  { label: "Franchise Admin", email: "admin@demo.kidzventure.com", pw: "Admin@123" },
-                  { label: "Super Admin", email: "superadmin@kidzventure.com", pw: "SuperAdmin@123" },
-                ].map((cred) => (
-                  <button
-                    key={cred.email}
-                    type="button"
-                    onClick={() => { setEmail(cred.email); setPassword(cred.pw); setError(""); }}
-                    className="flex w-full items-center justify-between rounded-lg bg-white border px-3 py-2 text-xs hover:border-brand-purple/30 hover:bg-purple-50 transition"
-                  >
-                    <span className="font-medium text-slate-700">{cred.label}</span>
-                    <span className="text-slate-400 font-mono">{cred.email}</span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-slate-400 mt-2">Click a row to auto-fill · Remove these in production</p>
-            </div>
+
           </div>
 
           <p className="mt-4 text-center text-xs text-slate-400">
