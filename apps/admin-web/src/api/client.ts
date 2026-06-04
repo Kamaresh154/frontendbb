@@ -1,7 +1,7 @@
 import axios, { type AxiosError } from "axios";
 import type { TokenResponse } from "@kidzventure/shared-types";
 
-const baseURL = "https://backend-5-1ptj.onrender.com";
+const baseURL = import.meta.env.VITE_API_URL as string | undefined;
 
 export const api = axios.create({
   baseURL: baseURL ? `${baseURL}/api/v1` : "/api/v1",
