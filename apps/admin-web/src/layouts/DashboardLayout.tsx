@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useRole } from "../context/RoleGuard";
@@ -7,8 +8,8 @@ interface NavItem {
   label: string;
   icon: string;
   end?: boolean;
-  superAdminOnly?: boolean;   // super_admin only
-  internalOnly?: boolean;     // super_admin + employee (not franchise)
+  superAdminOnly?: boolean;
+  internalOnly?: boolean;
 }
 interface NavSection { label: string; items: NavItem[]; }
 
@@ -67,6 +68,7 @@ const NAV_SECTIONS: NavSection[] = [
 export default function DashboardLayout() {
   const { user, logout } = useAuth();
   const { isSuperAdmin, isEmployee, isFranchiseManager } = useRole();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const roleBadge = isSuperAdmin
     ? { label: "Super Admin", cls: "bg-yellow-400/20 text-yellow-300 ring-1 ring-yellow-400/30" }
@@ -82,103 +84,147 @@ export default function DashboardLayout() {
     return true;
   }
 
-  return (
-    <div className="flex min-h-screen bg-slate-100">
-      {/* Sidebar */}
-      <aside className="flex w-64 flex-col bg-[#1e1b4b] text-white shadow-2xl">
-        {/* Brand */}
-        <div className="border-b border-white/10 px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-purple text-base font-black shadow-lg">K</div>
-            <div>
-              <p className="text-sm font-bold tracking-tight leading-none">KidzVenture</p>
-              <p className="text-[10px] text-white/40 mt-0.5">ERP Platform</p>
-            </div>
+  const SidebarContent = ({ onNavClick }: { onNavClick?: () => void }) => (
+    <>
+      {/* Brand */}
+      <div className="border-b border-white/10 px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-purple text-base font-black shadow-lg">K</div>
+          <div>
+            <p className="text-sm font-bold tracking-tight leading-none">KidzVenture</p>
+            <p className="text-[10px] text-white/40 mt-0.5">ERP Platform</p>
           </div>
         </div>
+      </div>
 
-        {/* Role banner */}
-        {isSuperAdmin && (
-          <div className="mx-3 mt-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-3 py-2">
-            <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">⚡ Super Admin</p>
-            <p className="text-[10px] text-yellow-300/60 mt-0.5">Full platform access</p>
-          </div>
-        )}
-        {isEmployee && !isSuperAdmin && (
-          <div className="mx-3 mt-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 px-3 py-2">
-            <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">👤 Employee</p>
-            <p className="text-[10px] text-cyan-300/60 mt-0.5">Internal staff access</p>
-          </div>
-        )}
-        {isFranchiseManager && !isSuperAdmin && (
-          <div className="mx-3 mt-3 rounded-xl bg-orange-500/10 border border-orange-500/20 px-3 py-2">
-            <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">🏢 Franchise</p>
-            <p className="text-[10px] text-orange-300/60 mt-0.5">Franchise portal access</p>
-          </div>
-        )}
+      {/* Role banner */}
+      {isSuperAdmin && (
+        <div className="mx-3 mt-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-3 py-2">
+          <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">⚡ Super Admin</p>
+          <p className="text-[10px] text-yellow-300/60 mt-0.5">Full platform access</p>
+        </div>
+      )}
+      {isEmployee && !isSuperAdmin && (
+        <div className="mx-3 mt-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 px-3 py-2">
+          <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">👤 Employee</p>
+          <p className="text-[10px] text-cyan-300/60 mt-0.5">Internal staff access</p>
+        </div>
+      )}
+      {isFranchiseManager && !isSuperAdmin && (
+        <div className="mx-3 mt-3 rounded-xl bg-orange-500/10 border border-orange-500/20 px-3 py-2">
+          <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">🏢 Franchise</p>
+          <p className="text-[10px] text-orange-300/60 mt-0.5">Franchise portal access</p>
+        </div>
+      )}
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-          {NAV_SECTIONS.map((section) => {
-            const visibleItems = section.items.filter(isItemVisible);
-            if (visibleItems.length === 0) return null;
-            return (
-              <div key={section.label}>
-                <p className="mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.15em] text-white/30">
-                  {section.label}
-                </p>
-                <div className="space-y-0.5">
-                  {visibleItems.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      end={item.end}
-                      className={({ isActive }) =>
-                        `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                          isActive
-                            ? "bg-brand-purple text-white shadow-lg shadow-brand-purple/30"
-                            : "text-white/60 hover:bg-white/8 hover:text-white/90"
-                        }`
-                      }
-                    >
-                      <span className="text-base leading-none">{item.icon}</span>
-                      <span>{item.label}</span>
-                    </NavLink>
-                  ))}
-                </div>
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        {NAV_SECTIONS.map((section) => {
+          const visibleItems = section.items.filter(isItemVisible);
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={section.label}>
+              <p className="mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.15em] text-white/30">
+                {section.label}
+              </p>
+              <div className="space-y-0.5">
+                {visibleItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={onNavClick}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                        isActive
+                          ? "bg-brand-purple text-white shadow-lg shadow-brand-purple/30"
+                          : "text-white/60 hover:bg-white/8 hover:text-white/90"
+                      }`
+                    }
+                  >
+                    <span className="text-base leading-none">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
               </div>
-            );
-          })}
-        </nav>
+            </div>
+          );
+        })}
+      </nav>
 
-        {/* User footer */}
-        <div className="border-t border-white/10 p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-purple/40 text-sm font-bold">
-              {user?.full_name?.[0]?.toUpperCase() ?? "A"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold leading-tight">{user?.full_name}</p>
-              <p className="truncate text-xs text-white/40 mt-0.5">{user?.email}</p>
-              <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${roleBadge.cls}`}>
-                {roleBadge.label}
-              </span>
-            </div>
+      {/* User footer */}
+      <div className="border-t border-white/10 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-purple/40 text-sm font-bold">
+            {user?.full_name?.[0]?.toUpperCase() ?? "A"}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold leading-tight">{user?.full_name}</p>
+            <p className="truncate text-xs text-white/40 mt-0.5">{user?.email}</p>
+            <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${roleBadge.cls}`}>
+              {roleBadge.label}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={logout}
+          className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/60 transition hover:bg-white/10 hover:text-white"
+        >
+          Sign out
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="flex min-h-screen bg-slate-100">
+      {/* ── Desktop sidebar ── */}
+      <aside className="hidden lg:flex w-64 flex-col bg-[#1e1b4b] text-white shadow-2xl flex-shrink-0">
+        <SidebarContent />
+      </aside>
+
+      {/* ── Mobile drawer overlay ── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Mobile drawer ── */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[#1e1b4b] text-white shadow-2xl transition-transform duration-300 lg:hidden ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <SidebarContent onNavClick={() => setSidebarOpen(false)} />
+      </aside>
+
+      {/* ── Main ── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile top bar */}
+        <header className="lg:hidden flex items-center justify-between bg-[#1e1b4b] px-4 py-3 text-white shadow-md flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-purple text-sm font-black">K</div>
+            <p className="text-sm font-bold tracking-tight">KidzVenture</p>
           </div>
           <button
             type="button"
-            onClick={logout}
-            className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/60 transition hover:bg-white/10 hover:text-white"
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition"
+            aria-label="Open menu"
           >
-            Sign out
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
           </button>
-        </div>
-      </aside>
+        </header>
 
-      {/* Main */}
-      <main className="flex-1 overflow-auto">
-        <Outlet />
-      </main>
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
