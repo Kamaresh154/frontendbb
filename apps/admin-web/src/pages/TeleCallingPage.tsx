@@ -128,8 +128,15 @@ export default function TeleCallingPage() {
       .then((r) => { setRecords(r.data.map((x: any) => ({ ...x, sector: x.sector ?? "Head Office", centre_name: x.centre_name ?? "—", call_direction: x.call_direction ?? "outbound" }))); setLoading(false); })
       .catch(() => { setRecords(getLocal()); setLoading(false); });
 
-    // Check if getDisplayMedia (system audio) is available — Chrome 105+
-    setSystemCaptureSupported("getDisplayMedia" in navigator.mediaDevices);
+    // Check if getDisplayMedia (system audio) is available — Chrome 105+ desktop only
+    const hasDisplayMedia = "getDisplayMedia" in navigator.mediaDevices;
+    setSystemCaptureSupported(hasDisplayMedia);
+
+    // On mobile, getDisplayMedia is not available — auto-switch to mic-only
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    if (isMobile || !hasDisplayMedia) {
+      setRecordingSource("mic");
+    }
 
     // Load audio devices
     listAudioDevices().then(setAudioDevices);
@@ -163,18 +170,21 @@ export default function TeleCallingPage() {
 
     /* 1. Always grab the microphone (your voice) */
     try {
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
       const micConstraints: MediaStreamConstraints = {
-        audio: {
-          deviceId: selMicId !== "default" ? { exact: selMicId } : undefined,
-          echoCancellation: false,  // keep raw audio for recording
-          noiseSuppression: false,
-          autoGainControl: false,
-        }
+        audio: isMobile
+          ? true  // use simple constraints on mobile for better compatibility
+          : {
+            deviceId: selMicId !== "default" ? { exact: selMicId } : undefined,
+            echoCancellation: false,  // keep raw audio for recording
+            noiseSuppression: false,
+            autoGainControl: false,
+          }
       };
       const micStream = await navigator.mediaDevices.getUserMedia(micConstraints);
       streams.push(micStream);
     } catch {
-      setAudioError("Microphone access denied. Please allow microphone access in your browser.");
+      setAudioError("Microphone access denied. Please allow microphone access in your browser settings.");
       return;
     }
 
@@ -231,9 +241,23 @@ export default function TeleCallingPage() {
 
     /* 4. Start MediaRecorder */
     audioChunksRef.current = [];
-    const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"]
-      .find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
-    const rec = new MediaRecorder(recordStream, mime ? { mimeType: mime } : {});
+    const mime = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/ogg",
+      "audio/mp4",       // Safari / iOS fallback
+      "audio/mpeg",
+    ].find((m) => {
+      try { return MediaRecorder.isTypeSupported(m); } catch { return false; }
+    }) ?? "";
+    let rec: MediaRecorder;
+    try {
+      rec = new MediaRecorder(recordStream, mime ? { mimeType: mime } : {});
+    } catch {
+      // Some mobile browsers don't accept options — try without
+      rec = new MediaRecorder(recordStream);
+    }
     mediaRecorderRef.current = rec;
     rec.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
     rec.start(200);
@@ -389,9 +413,9 @@ export default function TeleCallingPage() {
      RENDER
      ════════════════════════════════════════════════════════════════════════════ */
   return (
-    <div className="p-8 max-w-screen-xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-screen-xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tele Calling</h1>
           <p className="text-sm text-slate-500">
@@ -400,7 +424,7 @@ export default function TeleCallingPage() {
           </p>
         </div>
         {!activeCall && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button type="button" onClick={() => setShowDeviceSetup(!showDeviceSetup)}
               className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">
               ⚙️ Audio Setup
@@ -413,21 +437,38 @@ export default function TeleCallingPage() {
         )}
       </div>
 
-      {/* ── Phone Link instruction banner ── */}
-      <div className="rounded-2xl bg-blue-50 border border-blue-200 px-5 py-4">
-        <div className="flex items-start gap-3">
-          <span className="text-2xl flex-shrink-0">🔗</span>
-          <div className="flex-1">
-            <p className="font-bold text-blue-800 text-sm">Phone Link Recording — How it works</p>
-            <div className="mt-2 space-y-1 text-xs text-blue-700">
-              <p>1. Click <strong>"New Call"</strong> → fill details → click <strong>"📞 Start Recording + Call"</strong></p>
-              <p>2. Browser will ask: <strong>"Share screen/window/tab"</strong> — in that dialog, check <strong>"Also share system audio"</strong> checkbox at the bottom, then click Share</p>
-              <p>3. Your phone dialer opens via Phone Link and the call starts — the app records <strong>both your mic AND the Phone Link audio</strong></p>
-              <p>4. After the call, click <strong>"End Call"</strong> in the app — the recording saves automatically and plays back in the table</p>
+      {/* ── Phone Link / Mobile instruction banner ── */}
+      {systemCaptureSupported ? (
+        <div className="rounded-2xl bg-blue-50 border border-blue-200 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">🔗</span>
+            <div className="flex-1">
+              <p className="font-bold text-blue-800 text-sm">Phone Link Recording — How it works</p>
+              <div className="mt-2 space-y-1 text-xs text-blue-700">
+                <p>1. Click <strong>"New Call"</strong> → fill details → click <strong>"📞 Start Recording + Call"</strong></p>
+                <p>2. Browser will ask: <strong>"Share screen/window/tab"</strong> — in that dialog, check <strong>"Also share system audio"</strong> checkbox at the bottom, then click Share</p>
+                <p>3. Your phone dialer opens via Phone Link and the call starts — the app records <strong>both your mic AND the Phone Link audio</strong></p>
+                <p>4. After the call, click <strong>"End Call"</strong> in the app — the recording saves automatically and plays back in the table</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-2xl bg-green-50 border border-green-200 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">📱</span>
+            <div className="flex-1">
+              <p className="font-bold text-green-800 text-sm">Mobile Recording — Mic Only Mode</p>
+              <div className="mt-2 space-y-1 text-xs text-green-700">
+                <p>1. Click <strong>"New Call"</strong> → fill in the customer details</p>
+                <p>2. Tap <strong>"📞 Start Recording + Call"</strong> — allow microphone permission when prompted</p>
+                <p>3. Your phone dialer opens — the app records <strong>your mic audio</strong> during the call</p>
+                <p>4. After the call, tap <strong>"End Call"</strong> to save the recording</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Audio Setup panel ── */}
       {showDeviceSetup && (
@@ -503,9 +544,9 @@ export default function TeleCallingPage() {
       {/* ── Active call ── */}
       {activeCall && (
         <div className="rounded-2xl bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 p-5 text-white shadow-2xl">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-3xl">
+              <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-3xl">
                 📞
                 <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
@@ -526,12 +567,12 @@ export default function TeleCallingPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between sm:justify-end gap-4">
               <div className="text-center">
                 <p className="text-3xl font-mono font-bold tabular-nums">{fmtDur(callDuration)}</p>
                 <p className="text-xs text-white/50">Duration</p>
               </div>
-              <canvas ref={canvasRef} width={120} height={44} className="rounded-xl bg-black/20" />
+              <canvas ref={canvasRef} width={100} height={40} className="hidden sm:block rounded-xl bg-black/20" />
               <div className="flex flex-col gap-2">
                 <button type="button" onClick={() => endCall("completed")}
                   className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 shadow-lg">
@@ -587,8 +628,9 @@ export default function TeleCallingPage() {
             </div>
           </div>
 
-          {/* Recording mode quick select */}
-          <div className="mt-4 flex items-center gap-2">
+          {/* Recording mode quick select — only shown on desktop where getDisplayMedia is supported */}
+          {systemCaptureSupported && (
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
             <span className="text-xs text-slate-500 font-medium">Record:</span>
             {(["mixed","mic","system"] as const).map((m) => (
               <button key={m} type="button" onClick={() => setRecordingSource(m)}
@@ -597,6 +639,7 @@ export default function TeleCallingPage() {
               </button>
             ))}
           </div>
+          )}
 
           {recordingSource !== "mic" && (
             <div className="mt-3 rounded-xl bg-blue-50 border border-blue-200 px-4 py-2.5 text-xs text-blue-700">
