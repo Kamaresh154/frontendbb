@@ -40,7 +40,7 @@ const BLANK: Omit<Product, "id"> = {
 };
 
 export default function ProductCataloguePage() {
-  const { isFranchiseManager, isSuperAdmin, isEmployee } = useRole();
+  const { isSuperAdmin, isEmployee } = useRole();
   const canEdit = isSuperAdmin || isEmployee; // franchise managers get view-only
   const [products, setProducts] = useState<Product[]>(getProducts);
   const [catFilter, setCatFilter] = useState("All");
