@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRole } from "../context/RoleGuard";
 
 interface Product {
   id: string;
@@ -39,6 +40,8 @@ const BLANK: Omit<Product, "id"> = {
 };
 
 export default function ProductCataloguePage() {
+  const { isFranchiseManager, isSuperAdmin, isEmployee } = useRole();
+  const canEdit = isSuperAdmin || isEmployee; // franchise managers get view-only
   const [products, setProducts] = useState<Product[]>(getProducts);
   const [catFilter, setCatFilter] = useState("All");
   const [search, setSearch] = useState("");
@@ -84,12 +87,13 @@ export default function ProductCataloguePage() {
   const fmt = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Product Catalogue</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage products, prices and availability</p>
+          <p className="mt-1 text-sm text-slate-500">{canEdit ? "Manage products, prices and availability" : "Browse available products"}</p>
         </div>
+        {canEdit && (
         <button
           type="button"
           onClick={() => { setForm(BLANK); setEditId(null); setShowForm(true); }}
@@ -97,6 +101,7 @@ export default function ProductCataloguePage() {
         >
           + Add Product
         </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -125,7 +130,7 @@ export default function ProductCataloguePage() {
       </div>
 
       {/* Add/Edit Form */}
-      {showForm && (
+      {showForm && canEdit && (
         <div className="mb-6 rounded-2xl border bg-white p-6 shadow-sm">
           <h2 className="mb-4 font-semibold text-slate-800">{editId ? "Edit Product" : "Add New Product"}</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -218,10 +223,14 @@ export default function ProductCataloguePage() {
                 </span>
               </div>
               <div className="flex gap-2">
+                {canEdit && (
+                  <>
                 <button type="button" onClick={() => editProduct(p)} className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200">Edit</button>
                 <button type="button" onClick={() => toggle(p.id)} className={`rounded-lg px-2 py-1 text-xs ${p.active ? "bg-red-50 text-red-600 hover:bg-red-100" : "bg-green-50 text-green-600 hover:bg-green-100"}`}>
                   {p.active ? "Deactivate" : "Activate"}
                 </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
