@@ -25,22 +25,41 @@ export default function ParentsPage() {
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    await api.post("/parents", {
-      full_name: form.full_name,
-      phone: form.phone || undefined,
-      email: form.email || undefined,
-    });
-    setShowForm(false);
-    setForm({ full_name: "", phone: "", email: "" });
-    load();
+    try {
+      await api.post("/parents", {
+        full_name: form.full_name,
+        phone: form.phone || undefined,
+        email: form.email || undefined,
+      });
+      setShowForm(false);
+      setForm({ full_name: "", phone: "", email: "" });
+      load();
+    } catch (err: any) {
+      alert(err?.response?.data?.detail ?? "Failed to create parent. Please try again.");
+    }
   }
 
   async function handleLink(e: FormEvent) {
     e.preventDefault();
     if (!linkParent) return;
-    await api.post(`/parents/${linkParent.id}/link`, linkForm);
-    setLinkParent(null);
-    load();
+    if (!linkForm.student_id) {
+      alert("Please select a student.");
+      return;
+    }
+    try {
+      await api.post(`/parents/${linkParent.id}/link`, linkForm);
+      setLinkParent(null);
+      load();
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        alert("This parent is already linked to the selected student.");
+        setLinkParent(null);
+      } else if (err?.response?.status === 404) {
+        alert("Student not found. Please refresh and try again.");
+      } else {
+        alert("Failed to link student. Please try again.");
+      }
+    }
   }
 
   return (
