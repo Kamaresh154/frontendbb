@@ -79,6 +79,8 @@ export default function TeleCallingPage() {
   const [records, setRecords]   = useState<CallRecord[]>([]);
   const [loading, setLoading]   = useState(true);
   const [showNew, setShowNew]   = useState(false);
+  const [showIncoming, setShowIncoming] = useState(false);
+  const [incomingForm, setIncomingForm] = useState({ customer: "", phone: "", agent: "", sector: "", centre_id: "", centre_name: "", notes: "" });
   const [activeCall, setActiveCall] = useState<{
     customer: string; phone: string; agent: string; notes: string;
     sector: string; centre_id: string; centre_name: string;
@@ -128,15 +130,8 @@ export default function TeleCallingPage() {
       .then((r) => { setRecords(r.data.map((x: any) => ({ ...x, sector: x.sector ?? "Head Office", centre_name: x.centre_name ?? "—", call_direction: x.call_direction ?? "outbound" }))); setLoading(false); })
       .catch(() => { setRecords(getLocal()); setLoading(false); });
 
-    // Check if getDisplayMedia (system audio) is available — Chrome 105+ desktop only
-    const hasDisplayMedia = "getDisplayMedia" in navigator.mediaDevices;
-    setSystemCaptureSupported(hasDisplayMedia);
-
-    // On mobile, getDisplayMedia is not available — auto-switch to mic-only
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    if (isMobile || !hasDisplayMedia) {
-      setRecordingSource("mic");
-    }
+    // Check if getDisplayMedia (system audio) is available — Chrome 105+
+    setSystemCaptureSupported("getDisplayMedia" in navigator.mediaDevices);
 
     // Load audio devices
     listAudioDevices().then(setAudioDevices);
@@ -162,71 +157,50 @@ export default function TeleCallingPage() {
   /* ════════════════════════════════════════════════════════════════════════════
      START CALL — captures audio from Phone Link (system audio) + mic
      ════════════════════════════════════════════════════════════════════════════ */
-  async function startCall() {
-    if (!newForm.phone) { alert("Enter phone number."); return; }
+  /* ── Shared: start audio recording (mic + optional system audio) ── */
+  async function startRecording(): Promise<void> {
     setAudioError(""); setAudioWarning("");
-
     const streams: MediaStream[] = [];
-
-    /* 1. Always grab the microphone (your voice) */
     try {
-      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
       const micConstraints: MediaStreamConstraints = {
-        audio: isMobile
-          ? true  // use simple constraints on mobile for better compatibility
-          : {
-            deviceId: selMicId !== "default" ? { exact: selMicId } : undefined,
-            echoCancellation: false,  // keep raw audio for recording
-            noiseSuppression: false,
-            autoGainControl: false,
-          }
+        audio: {
+          deviceId: selMicId !== "default" ? { exact: selMicId } : undefined,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        }
       };
       const micStream = await navigator.mediaDevices.getUserMedia(micConstraints);
       streams.push(micStream);
     } catch {
-      setAudioError("Microphone access denied. Please allow microphone access in your browser settings.");
+      setAudioError("Microphone access denied. Please allow microphone access in your browser.");
       return;
     }
-
-    /* 2. Try to grab system/tab audio (Phone Link call audio — the other person's voice)
-          Uses getDisplayMedia with audio — user must click the correct screen/tab
-          and check "Share system audio" checkbox in the browser prompt            */
     if (recordingSource === "system" || recordingSource === "mixed") {
       try {
         const displayStream = await (navigator.mediaDevices as any).getDisplayMedia({
-          video: false,         // no video needed
-          audio: {
-            suppressLocalAudioPlayback: false,
-            echoCancellation: false,
-            noiseSuppression: false,
-            sampleRate: 48000,
-          },
+          video: false,
+          audio: { suppressLocalAudioPlayback: false, echoCancellation: false, noiseSuppression: false, sampleRate: 48000 },
           preferCurrentTab: false,
-          systemAudio: "include",  // Chrome 105+ key: capture system audio
+          systemAudio: "include",
         });
         streams.push(displayStream);
         setAudioWarning("");
-      } catch (err: any) {
-        // User cancelled or system audio not available
+      } catch {
         if (recordingSource === "system") {
           setAudioError("System audio capture cancelled or not supported. Use 'Mic Only' mode instead.");
           streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
           return;
         }
-        // Mixed mode: just fall back to mic only with a warning
-        setAudioWarning("System audio not captured (cancelled). Recording microphone only — you'll hear yourself but not the caller.");
+        setAudioWarning("System audio not captured (cancelled). Recording microphone only.");
       }
     }
-
     streamsRef.current = streams;
-
-    /* 3. Mix all captured streams together */
     let recordStream: MediaStream;
     if (streams.length > 1) {
       const { mixed, ctx } = mixStreams(streams);
-      mixCtxRef.current  = ctx;
-      recordStream       = mixed;
-      // Attach analyser to mixed stream for waveform
+      mixCtxRef.current = ctx;
+      recordStream = mixed;
       const analyser = ctx.createAnalyser(); analyser.fftSize = 256;
       analyserRef.current = analyser;
       ctx.createMediaStreamSource(mixed).connect(analyser);
@@ -238,41 +212,27 @@ export default function TeleCallingPage() {
       analyserRef.current = analyser;
       ctx.createMediaStreamSource(streams[0]).connect(analyser);
     }
-
-    /* 4. Start MediaRecorder */
     audioChunksRef.current = [];
-    const mime = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/ogg;codecs=opus",
-      "audio/ogg",
-      "audio/mp4",       // Safari / iOS fallback
-      "audio/mpeg",
-    ].find((m) => {
-      try { return MediaRecorder.isTypeSupported(m); } catch { return false; }
-    }) ?? "";
-    let rec: MediaRecorder;
-    try {
-      rec = new MediaRecorder(recordStream, mime ? { mimeType: mime } : {});
-    } catch {
-      // Some mobile browsers don't accept options — try without
-      rec = new MediaRecorder(recordStream);
-    }
+    const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"]
+      .find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+    const rec = new MediaRecorder(recordStream, mime ? { mimeType: mime } : {});
     mediaRecorderRef.current = rec;
     rec.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
     rec.start(200);
-
-    /* 5. Dial via Phone Link */
-    window.open(`tel:${newForm.phone}`, "_self");
-
-    /* 6. Start UI */
-    setActiveCall({ ...newForm });
-    setCallDuration(0);
     setIsRecording(true);
     timerRef.current = setInterval(() => setCallDuration((d) => d + 1), 1000);
+    setTimeout(() => requestAnimationFrame(drawWave), 200);
+  }
+
+  async function startCall() {
+    if (!newForm.phone) { alert("Enter phone number."); return; }
+    /* Dial via Phone Link */
+    window.open(`tel:${newForm.phone}`, "_self");
+    setActiveCall({ ...newForm });
+    setCallDuration(0);
     setShowNew(false);
     setNewForm((f) => ({ ...f, customer: "", phone: "", notes: "" }));
-    setTimeout(() => requestAnimationFrame(drawWave), 200);
+    await startRecording();
   }
 
   /* ── End call — stop recording and save ── */
@@ -413,9 +373,9 @@ export default function TeleCallingPage() {
      RENDER
      ════════════════════════════════════════════════════════════════════════════ */
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-screen-xl mx-auto space-y-6">
+    <div className="p-8 max-w-screen-xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tele Calling</h1>
           <p className="text-sm text-slate-500">
@@ -424,51 +384,38 @@ export default function TeleCallingPage() {
           </p>
         </div>
         {!activeCall && (
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2">
             <button type="button" onClick={() => setShowDeviceSetup(!showDeviceSetup)}
               className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">
               ⚙️ Audio Setup
             </button>
-            <button type="button" onClick={() => setShowNew(true)}
+            <button type="button" onClick={() => { setShowNew(true); setShowIncoming(false); }}
               className="rounded-xl bg-brand-purple px-4 py-2 text-sm font-semibold text-white shadow hover:opacity-90">
-              📞 New Call
+              📞 Dial Call
+            </button>
+            <button type="button" onClick={() => { setShowIncoming(true); setShowNew(false); }}
+              className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-700">
+              📲 Receive Call
             </button>
           </div>
         )}
       </div>
 
-      {/* ── Phone Link / Mobile instruction banner ── */}
-      {systemCaptureSupported ? (
-        <div className="rounded-2xl bg-blue-50 border border-blue-200 px-5 py-4">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl flex-shrink-0">🔗</span>
-            <div className="flex-1">
-              <p className="font-bold text-blue-800 text-sm">Phone Link Recording — How it works</p>
-              <div className="mt-2 space-y-1 text-xs text-blue-700">
-                <p>1. Click <strong>"New Call"</strong> → fill details → click <strong>"📞 Start Recording + Call"</strong></p>
-                <p>2. Browser will ask: <strong>"Share screen/window/tab"</strong> — in that dialog, check <strong>"Also share system audio"</strong> checkbox at the bottom, then click Share</p>
-                <p>3. Your phone dialer opens via Phone Link and the call starts — the app records <strong>both your mic AND the Phone Link audio</strong></p>
-                <p>4. After the call, click <strong>"End Call"</strong> in the app — the recording saves automatically and plays back in the table</p>
-              </div>
+      {/* ── Phone Link instruction banner ── */}
+      <div className="rounded-2xl bg-blue-50 border border-blue-200 px-5 py-4">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl flex-shrink-0">🔗</span>
+          <div className="flex-1">
+            <p className="font-bold text-blue-800 text-sm">Phone Link Recording — How it works</p>
+            <div className="mt-2 space-y-1 text-xs text-blue-700">
+              <p>1. Click <strong>"New Call"</strong> → fill details → click <strong>"📞 Start Recording + Call"</strong></p>
+              <p>2. Browser will ask: <strong>"Share screen/window/tab"</strong> — in that dialog, check <strong>"Also share system audio"</strong> checkbox at the bottom, then click Share</p>
+              <p>3. Your phone dialer opens via Phone Link and the call starts — the app records <strong>both your mic AND the Phone Link audio</strong></p>
+              <p>4. After the call, click <strong>"End Call"</strong> in the app — the recording saves automatically and plays back in the table</p>
             </div>
           </div>
         </div>
-      ) : (
-        <div className="rounded-2xl bg-green-50 border border-green-200 px-5 py-4">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl flex-shrink-0">📱</span>
-            <div className="flex-1">
-              <p className="font-bold text-green-800 text-sm">Mobile Recording — Mic Only Mode</p>
-              <div className="mt-2 space-y-1 text-xs text-green-700">
-                <p>1. Click <strong>"New Call"</strong> → fill in the customer details</p>
-                <p>2. Tap <strong>"📞 Start Recording + Call"</strong> — allow microphone permission when prompted</p>
-                <p>3. Your phone dialer opens — the app records <strong>your mic audio</strong> during the call</p>
-                <p>4. After the call, tap <strong>"End Call"</strong> to save the recording</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* ── Audio Setup panel ── */}
       {showDeviceSetup && (
@@ -544,9 +491,9 @@ export default function TeleCallingPage() {
       {/* ── Active call ── */}
       {activeCall && (
         <div className="rounded-2xl bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 p-5 text-white shadow-2xl">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-3xl">
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-3xl">
                 📞
                 <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
@@ -567,12 +514,12 @@ export default function TeleCallingPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between sm:justify-end gap-4">
+            <div className="flex items-center gap-4">
               <div className="text-center">
                 <p className="text-3xl font-mono font-bold tabular-nums">{fmtDur(callDuration)}</p>
                 <p className="text-xs text-white/50">Duration</p>
               </div>
-              <canvas ref={canvasRef} width={100} height={40} className="hidden sm:block rounded-xl bg-black/20" />
+              <canvas ref={canvasRef} width={120} height={44} className="rounded-xl bg-black/20" />
               <div className="flex flex-col gap-2">
                 <button type="button" onClick={() => endCall("completed")}
                   className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 shadow-lg">
@@ -628,9 +575,8 @@ export default function TeleCallingPage() {
             </div>
           </div>
 
-          {/* Recording mode quick select — only shown on desktop where getDisplayMedia is supported */}
-          {systemCaptureSupported && (
-          <div className="mt-4 flex items-center gap-2 flex-wrap">
+          {/* Recording mode quick select */}
+          <div className="mt-4 flex items-center gap-2">
             <span className="text-xs text-slate-500 font-medium">Record:</span>
             {(["mixed","mic","system"] as const).map((m) => (
               <button key={m} type="button" onClick={() => setRecordingSource(m)}
@@ -639,7 +585,6 @@ export default function TeleCallingPage() {
               </button>
             ))}
           </div>
-          )}
 
           {recordingSource !== "mic" && (
             <div className="mt-3 rounded-xl bg-blue-50 border border-blue-200 px-4 py-2.5 text-xs text-blue-700">
@@ -657,6 +602,119 @@ export default function TeleCallingPage() {
               Log Missed
             </button>
             <button type="button" onClick={() => setShowNew(false)}
+              className="rounded-xl border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── Incoming Call Form ── */}
+      {showIncoming && !activeCall && (
+        <div className="rounded-2xl border border-green-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-2xl animate-bounce">📲</span>
+            <h2 className="font-semibold text-slate-800">Log Incoming Call</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Caller Name</label>
+              <input value={incomingForm.customer} onChange={(e) => setIncomingForm({ ...incomingForm, customer: e.target.value })}
+                placeholder="Caller name (optional)"
+                className="w-full rounded-xl border px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Caller Phone *</label>
+              <input type="tel" value={incomingForm.phone} onChange={(e) => setIncomingForm({ ...incomingForm, phone: e.target.value })}
+                placeholder="9876543210" required
+                className="w-full rounded-xl border px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Agent (who received)</label>
+              <select value={incomingForm.agent} onChange={(e) => setIncomingForm({ ...incomingForm, agent: e.target.value })}
+                className="w-full rounded-xl border px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+                <option value={user?.full_name ?? ""}>{user?.full_name ?? "Me"}</option>
+                {employees.map((e) => <option key={e.id} value={e.full_name}>{e.full_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Sector / Zone</label>
+              <select value={incomingForm.sector} onChange={(e) => {
+                const ctr = centres.find((c) => c.name === e.target.value);
+                setIncomingForm({ ...incomingForm, sector: e.target.value, centre_id: ctr?.id ?? "", centre_name: e.target.value });
+              }} className="w-full rounded-xl border px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+                {sectors.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Notes</label>
+              <input value={incomingForm.notes} onChange={(e) => setIncomingForm({ ...incomingForm, notes: e.target.value })}
+                placeholder="What was discussed..."
+                className="w-full rounded-xl border px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none" />
+            </div>
+          </div>
+          <div className="mt-4 rounded-xl bg-green-50 border border-green-200 px-4 py-2.5 text-xs text-green-700">
+            📲 <strong>How to record an incoming call:</strong> When your phone rings via Phone Link, click <strong>"Start Recording"</strong> below, answer on your phone, then click <strong>"End Call"</strong> when done. Recording saves automatically.
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button type="button"
+              onClick={async () => {
+                if (!incomingForm.phone) { alert("Phone number is required"); return; }
+                const callData = {
+                  customer: incomingForm.customer || "Unknown Caller",
+                  phone: incomingForm.phone,
+                  agent: incomingForm.agent || user?.full_name || "",
+                  notes: incomingForm.notes,
+                  sector: incomingForm.sector || sectors[0] || "",
+                  centre_id: incomingForm.centre_id || "",
+                  centre_name: incomingForm.centre_name || incomingForm.sector || "",
+                };
+                setActiveCall(callData);
+                setShowIncoming(false);
+                setCallDuration(0);
+                await startRecording();
+              }}
+              className="flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-green-700 shadow">
+              🎙️ Start Recording Incoming Call
+            </button>
+            <button type="button"
+              onClick={async () => {
+                if (!incomingForm.phone) { alert("Phone number is required"); return; }
+                const rec: CallRecord = (await api.post<CallRecord>("/calls/logs", {
+                  customer_name: incomingForm.customer || "Unknown Caller",
+                  phone: incomingForm.phone,
+                  agent_name: incomingForm.agent || user?.full_name || "Agent",
+                  sector: incomingForm.sector, centre_id: incomingForm.centre_id, centre_name: incomingForm.centre_name,
+                  duration_secs: 0, status: "completed", notes: incomingForm.notes || "",
+                  call_direction: "inbound", started_at: new Date().toISOString(),
+                })).data;
+                setRecords((prev) => [{ ...rec, call_direction: "inbound", sector: rec.sector ?? "", centre_name: rec.centre_name ?? "—" }, ...prev]);
+                setIncomingForm({ customer: "", phone: "", agent: "", sector: "", centre_id: "", centre_name: "", notes: "" });
+                setShowIncoming(false);
+              }}
+              className="rounded-xl bg-blue-100 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-200">
+              ✅ Log (No Recording)
+            </button>
+            <button type="button"
+              onClick={async () => {
+                if (!incomingForm.phone) { alert("Phone number is required"); return; }
+                const rec: CallRecord = (await api.post<CallRecord>("/calls/logs", {
+                  customer_name: incomingForm.customer || "Unknown Caller",
+                  phone: incomingForm.phone,
+                  agent_name: incomingForm.agent || user?.full_name || "Agent",
+                  sector: incomingForm.sector, centre_id: incomingForm.centre_id, centre_name: incomingForm.centre_name,
+                  duration_secs: 0, status: "missed", notes: incomingForm.notes || "",
+                  call_direction: "inbound", started_at: new Date().toISOString(),
+                })).data;
+                setRecords((prev) => [{ ...rec, call_direction: "inbound", sector: rec.sector ?? "", centre_name: rec.centre_name ?? "—" }, ...prev]);
+                setIncomingForm({ customer: "", phone: "", agent: "", sector: "", centre_id: "", centre_name: "", notes: "" });
+                setShowIncoming(false);
+              }}
+              className="rounded-xl bg-orange-100 px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-200">
+              Log Missed Incoming
+            </button>
+            <button type="button" onClick={() => setShowIncoming(false)}
               className="rounded-xl border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
               Cancel
             </button>
@@ -735,6 +793,7 @@ export default function TeleCallingPage() {
             <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-slate-50 text-xs uppercase text-slate-400">
                 <tr>
+                  <th className="px-4 py-3 text-left">Type</th>
                   <th className="px-4 py-3 text-left">Customer</th>
                   <th className="px-4 py-3 text-left">Phone</th>
                   <th className="px-4 py-3 text-left">Agent</th>
@@ -754,6 +813,11 @@ export default function TeleCallingPage() {
                   const durStr   = r.duration_secs != null ? fmtDur(r.duration_secs) : (r.duration ?? "—");
                   return (
                     <tr key={r.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${r.call_direction === "inbound" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
+                          {r.call_direction === "inbound" ? "📲 In" : "📞 Out"}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 font-medium text-slate-800">{r.customer_name || "—"}</td>
                       <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.phone}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{r.agent_name || "—"}</td>
