@@ -36,8 +36,8 @@ export default function CrmPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ child_name: "", parent_name: "", phone: "", source: "", notes: "" });
   const [loading, setLoading] = useState(true);
-
-  const load = async () => {
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
     setLoading(true);
     try {
       const [leadsRes, statsRes] = await Promise.all([
@@ -53,16 +53,30 @@ export default function CrmPage() {
   useEffect(() => { load(); }, [filterStatus]);
 
   const createLead = async () => {
-    if (!form.child_name || !form.parent_name) return;
-    await api.post("/crm/leads", form);
-    setForm({ child_name: "", parent_name: "", phone: "", source: "", notes: "" });
-    setShowAdd(false);
-    load();
+    if (!form.child_name || !form.parent_name) {
+      setSaveError("Child name and parent name are required.");
+      return;
+    }
+    setSaving(true);
+    setSaveError("");
+    try {
+      await api.post("/crm/leads", form);
+      setForm({ child_name: "", parent_name: "", phone: "", source: "", notes: "" });
+      setShowAdd(false);
+      load();
+    } catch (err: any) {
+      setSaveError(err?.response?.data?.detail ?? "Failed to save lead. Please check your connection and try again.");
+    }
+    setSaving(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await api.patch(`/crm/leads/${id}`, { status });
-    load();
+    try {
+      await api.patch(`/crm/leads/${id}`, { status });
+      load();
+    } catch (err: any) {
+      alert(err?.response?.data?.detail ?? "Failed to update status.");
+    }
   };
 
   return (
@@ -118,9 +132,12 @@ export default function CrmPage() {
               />
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
-            <button type="button" onClick={createLead} className="rounded-lg bg-brand-purple px-4 py-2 text-sm text-white hover:opacity-90">Save</button>
-            <button type="button" onClick={() => setShowAdd(false)} className="rounded-lg border px-4 py-2 text-sm text-gray-600">Cancel</button>
+          <div className="mt-4 flex gap-2 items-center">
+            <button type="button" onClick={createLead} disabled={saving} className="rounded-lg bg-brand-purple px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50">
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={() => { setShowAdd(false); setSaveError(""); }} className="rounded-lg border px-4 py-2 text-sm text-gray-600">Cancel</button>
+            {saveError && <p className="text-sm text-red-600 ml-2">{saveError}</p>}
           </div>
         </div>
       )}
