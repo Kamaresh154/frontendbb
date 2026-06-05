@@ -61,7 +61,7 @@ export default function DashboardPage() {
   // ── Super Admin Dashboard ──
   if (isSuperAdmin) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8">
+      <div className="p-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Super Admin Dashboard</h1>
           <p className="mt-1 text-sm text-slate-500">{today}</p>
@@ -89,7 +89,7 @@ export default function DashboardPage() {
   // ── Franchise Manager Dashboard ──
   if (isFranchiseManager && !isAdmin) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8">
+      <div className="p-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Welcome, {user?.full_name?.split(" ")[0]} 👋</h1>
           <p className="mt-1 text-sm text-slate-500">{today} · {org?.name ?? "KidzVenture"}</p>
@@ -109,7 +109,7 @@ export default function DashboardPage() {
 
   // ── Admin / Employee Dashboard ──
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
+    <div className="p-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">
           {isEmployee ? `Hi, ${user?.full_name?.split(" ")[0]} 👋` : `Good morning, ${user?.full_name?.split(" ")[0]} 👋`}
