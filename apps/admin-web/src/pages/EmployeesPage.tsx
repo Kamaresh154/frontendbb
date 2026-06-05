@@ -629,7 +629,7 @@ export default function EmployeesPage() {
                     ))}
                     <button type="button" onClick={() => setShowLeaveForm(!showLeaveForm)}
                       className="rounded-lg bg-brand-purple px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 ml-2">
-                      + Apply Leave
+                      + Approve Leave
                     </button>
                   </div>
                 </div>
