@@ -226,8 +226,10 @@ export default function TeleCallingPage() {
 
   async function startCall() {
     if (!newForm.phone) { alert("Enter phone number."); return; }
-    /* Dial via Phone Link */
-    window.open(`tel:${newForm.phone}`, "_self");
+    /* Dial via tel: — works on both mobile (native dialer) and desktop (Phone Link) */
+    const dialLink = document.createElement("a");
+    dialLink.href = `tel:${newForm.phone}`;
+    dialLink.click();
     setActiveCall({ ...newForm });
     setCallDuration(0);
     setShowNew(false);
@@ -271,21 +273,37 @@ export default function TeleCallingPage() {
     dur: number; status: CallRecord["status"];
     blobToAttach: Blob | null; source?: string;
   }) {
-    const newRec: CallRecord = await api.post<CallRecord>("/calls/logs", {
-      customer_name: callCopy.customer, phone: callCopy.phone,
+    const payload = {
+      customer_name: callCopy.customer || "Unknown",
+      phone: callCopy.phone,
       agent_name: callCopy.agent || user?.full_name,
-      sector: callCopy.sector, centre_id: callCopy.centre_id, centre_name: callCopy.centre_name,
-      duration_secs: dur, status, notes: callCopy.notes || "",
-      call_direction: "outbound", recording_source: source,
-    }).then((r) => r.data as CallRecord).catch((): CallRecord => ({
-      id: "loc_" + Date.now(),
-      customer_name: callCopy.customer, phone: callCopy.phone,
-      agent_name: callCopy.agent || user?.full_name || "Agent",
-      sector: callCopy.sector, centre_id: callCopy.centre_id, centre_name: callCopy.centre_name,
-      status, notes: callCopy.notes, duration_secs: dur,
-      started_at: new Date().toISOString(), call_direction: "outbound",
-      recording_source: (source ?? "mic") as any,
-    }));
+      sector: callCopy.sector,
+      centre_id: callCopy.centre_id,
+      centre_name: callCopy.centre_name,
+      duration_secs: dur,
+      status,
+      notes: callCopy.notes || "",
+      call_direction: "outbound",
+      recording_source: source,
+      started_at: new Date().toISOString(),
+    };
+    const newRec: CallRecord = await api.post<CallRecord>("/calls/logs", payload)
+      .then((r) => r.data as CallRecord)
+      .catch((): CallRecord => ({
+        id: "loc_" + Date.now(),
+        customer_name: callCopy.customer || "Unknown",
+        phone: callCopy.phone,
+        agent_name: callCopy.agent || user?.full_name || "Agent",
+        sector: callCopy.sector,
+        centre_id: callCopy.centre_id,
+        centre_name: callCopy.centre_name,
+        status,
+        notes: callCopy.notes,
+        duration_secs: dur,
+        started_at: new Date().toISOString(),
+        call_direction: "outbound",
+        recording_source: (source ?? "mic") as any,
+      }));
 
     if (blobToAttach) {
       const url = URL.createObjectURL(blobToAttach);
