@@ -38,15 +38,24 @@ export default function CrmPage() {
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
-    setLoading(true);
+
+  const load = async () => {
+  setLoading(true);
+
     try {
       const [leadsRes, statsRes] = await Promise.all([
-        api.get<{ items: Lead[] }>(`/crm/leads${filterStatus ? `?status=${filterStatus}` : ""}`),
+        api.get<{ items: Lead[] }>(
+          `/crm/leads${filterStatus ? `?status=${filterStatus}` : ""}`
+        ),
         api.get<PipelineStats>("/crm/pipeline/stats"),
       ]);
+
       setLeads(leadsRes.data.items);
       setStats(statsRes.data);
-    } catch {}
+    } catch (error) {
+      console.error("Failed to load CRM data:", error);
+    }
+
     setLoading(false);
   };
 
