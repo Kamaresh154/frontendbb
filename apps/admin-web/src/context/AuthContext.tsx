@@ -82,8 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { data } = await api.post<TokenResponse>("/auth/login", {
     email,
     password,
-    device_id: navigator.userAgent,
-    device_name: "Web Browser",
+    device_id: crypto.randomUUID(),
+    device_name: navigator.userAgent,
   });
 
   storeTokens(data);
