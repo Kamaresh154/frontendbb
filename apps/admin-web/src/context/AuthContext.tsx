@@ -79,12 +79,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { data } = await api.post<TokenResponse>("/auth/login", { email, password });
-    storeTokens(data);
-    const me = await api.get<UserProfile>("/auth/me");
-    setUser(me.data);
-    setSessionExpired(false);
-  }, []);
+  const { data } = await api.post<TokenResponse>("/auth/login", {
+    email,
+    password,
+    device_id: navigator.userAgent,
+    device_name: "Web Browser",
+  });
+
+  storeTokens(data);
+
+  const me = await api.get<UserProfile>("/auth/me");
+
+  setUser(me.data);
+  setSessionExpired(false);
+}, []);
 
   const logout = useCallback(() => {
     clearTokens();
