@@ -20,10 +20,16 @@ export default function LoginPage() {
       await login(email, password);
       navigate("/");
     } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      if (typeof detail === "string") setError(detail);
-      else setError("Invalid email or password. Please try again.");
-    } finally {
+  console.log("LOGIN ERROR:", err?.response?.data);
+
+  const detail = err?.response?.data?.detail;
+
+  if (typeof detail === "string") {
+    setError(detail);
+  } else {
+    setError(JSON.stringify(err?.response?.data));
+  }
+} finally {
       setSubmitting(false);
     }
   }
